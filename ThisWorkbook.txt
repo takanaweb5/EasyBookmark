@@ -1,9 +1,9 @@
-﻿'*****************************************************************************
+﻿Option Explicit
+
+'*****************************************************************************
 '[概要] アドインのインストール時に実行される
 '*****************************************************************************
 Private Sub Workbook_AddinInstall()
-    On Error Resume Next
-    Call CreateToolBar
 End Sub
 
 '*****************************************************************************
@@ -14,9 +14,31 @@ Private Sub Workbook_AddinUninstall()
     Call Application.CommandBars("かんたんブックマーク").Delete
 End Sub
 
-Private Sub Auto_Remove()
+'*****************************************************************************
+'[概要] 開く時
+'*****************************************************************************
+Private Sub Workbook_Open()
+    On Error Resume Next
+    If ThisWorkbook.IsAddin = True Then
+        Application.ScreenUpdating = False
+        ThisWorkbook.IsAddin = False
+        Call CreateToolBar
+        ThisWorkbook.IsAddin = True
+        ThisWorkbook.Saved = True
+        Application.ScreenUpdating = True
+    Else
+        Call CreateToolBar
+    End If
 End Sub
 
+'*****************************************************************************
+'[概要] 閉じる時
+'*****************************************************************************
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    On Error Resume Next
+    Call Application.CommandBars("かんたんブックマーク").Delete
+    ThisWorkbook.Saved = True
+End Sub
 
 '*****************************************************************************
 '[概要] ToolBarを作成する

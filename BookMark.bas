@@ -1,16 +1,12 @@
 Attribute VB_Name = "BookMark"
 Option Explicit
-'キーが押下されているかどうか判定する
-Private Declare PtrSafe Function GetKeyState Lib "user32" (ByVal lngVirtKey As Long) As Integer
-Private Declare PtrSafe Function FindWindowA Lib "user32" (ByVal clpClassName As String, ByVal lpWindowName As String) As Long
-Private Declare PtrSafe Function FindWindowEx Lib "user32.dll" Alias "FindWindowExA" (ByVal hwndParent As Long, ByVal hwndChildAfter As Long, ByVal lpszClass As String, ByVal lpszWindow As String) As Long
-Private Declare PtrSafe Function GetWindowText Lib "user32.dll" Alias "GetWindowTextA" (ByVal hWnd As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
-Private Declare PtrSafe Function SendMessage Lib "user32.dll" Alias "SendMessageA" (ByVal hWnd As Long, ByVal MSG As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
 
-Const C_ColorIndex = 20
+Public Declare PtrSafe Function GetKeyState Lib "user32" (ByVal lngVirtKey As Long) As Integer
+
+Const C_Color = &HFFFFCC
 Const C_PatternColorIndex = 29
 
-Private lngColorIndex As Long
+Private lngColor  As Long
     
 '*****************************************************************************
 '[概要] 選択されセルにBookmarkを設定/解除する
@@ -41,21 +37,21 @@ On Error GoTo ErrHandle
     With objRange.Interior
         '[Ctrl]Keyが押下されていれば、セルの色を選択
         If GetKeyState(vbKeyControl) < 0 Then
-            If Application.Dialogs(xlDialogPatterns).Show(, , C_ColorIndex) = False Then
+            If Application.Dialogs(xlDialogPatterns).Show = False Then
                 Exit Sub
             End If
             If .ColorIndex = xlColorIndexNone Then
-                lngColorIndex = C_ColorIndex
+                lngColor = C_Color
             Else
-                lngColorIndex = .ColorIndex
+                lngColor = .Color
             End If
         Else
-            If lngColorIndex = 0 Then
-                lngColorIndex = C_ColorIndex
+            If lngColor = 0 Then
+                lngColor = C_Color
             End If
         End If
         .Pattern = xlSolid
-        .ColorIndex = lngColorIndex
+        .Color = lngColor
         .PatternColorIndex = C_PatternColorIndex
     End With
 ErrHandle:
@@ -276,7 +272,7 @@ On Error GoTo ErrHandle
             Else
                 '書式のクリア
                 With objCell.Interior
-                    If .ColorIndex = lngColorIndex Then
+                    If .Color = lngColor Then
                         .ColorIndex = xlNone
                     Else
                         .PatternColorIndex = xlAutomatic
@@ -320,21 +316,12 @@ On Error GoTo ErrHandle
         xlDirection = xlNext
     End If
     
-    '検索対象の書式が設定されているか判定
-    If CheckFindFormat() = True Then
-        '検索対象文字列が設定されているか判定
-        If CheckFindStrIsBlank() = True Then
-            Set objCell = FindNextFormat(ActiveCell, xlDirection, "")
-        Else
-            Set objCell = FindNextFormat(ActiveCell, xlDirection, GetFindStr())
-        End If
-    Else
-        Set objCell = FindJump(ActiveCell, xlDirection)
-    End If
+    Set objCell = FindJump(ActiveCell, xlDirection)
+    
     If Not (objCell Is Nothing) Then
         Call objCell.Select
-    Else
-        Call ShowFindDialog
+'    Else
+'        Call ShowFindDialog
     End If
 
 ErrHandle:
@@ -346,57 +333,57 @@ End Sub
 '[引数] なし
 '[戻値] なし
 '*****************************************************************************
-Public Sub SelectAllSearchCell()
-On Error GoTo ErrHandle
-    Dim blnFindFormat As Boolean
-    Dim blnFindstr    As Boolean
-    Dim strFind    As String
-    Dim hWnd       As Long
-    Dim objCell    As Range
-    Dim objRange   As Range
-    
-    blnFindFormat = CheckFindFormat()
-    blnFindstr = Not CheckFindStrIsBlank()
-    
-    '検索文字列も検索書式も設定されていない時
-    If blnFindstr = False And blnFindFormat = False Then
-        '「検索と置換」のダイアログを表示し、閉じられるまでループ
-        hWnd = ShowFindDialog
-        Do While (GetDialogHandle() <> 0)
-            strFind = GetFindStr(hWnd)
-            DoEvents
-        Loop
-        blnFindFormat = CheckFindFormat()
-    ElseIf blnFindstr = True And blnFindFormat = True Then
-        strFind = GetFindStr()
-    End If
-    
-    'アクティブシート上のすべての検索対象セルを取得
-    Set objCell = ActiveSheet.Cells(Rows.Count, Columns.Count)
-    Do While (True)
-        If blnFindFormat = True Then
-            '検索書式設定あり
-            Set objCell = FindNextFormat(objCell, xlNext, strFind)
-        Else
-            '検索書式設定なし
-            Set objCell = FindJump(objCell, xlNext)
-        End If
-        
-        If objCell Is Nothing Then
-            Exit Do
-        ElseIf objRange Is Nothing Then
-            Set objRange = objCell
-        ElseIf Intersect(objRange, objCell) Is Nothing Then
-            Set objRange = Union(objRange, objCell)
-        Else
-            'すべての検索対象セルを選択
-            Call objRange.Select
-            Exit Do
-        End If
-    Loop
-ErrHandle:
-    Call ActiveCell.Worksheet.Select
-End Sub
+'Public Sub SelectAllSearchCell()
+'On Error GoTo ErrHandle
+'    Dim blnFindFormat As Boolean
+'    Dim blnFindstr    As Boolean
+'    Dim strFind    As String
+'    Dim hWnd       As Long
+'    Dim objCell    As Range
+'    Dim objRange   As Range
+'
+'    blnFindFormat = CheckFindFormat()
+'    blnFindstr = Not CheckFindStrIsBlank()
+'
+'    '検索文字列も検索書式も設定されていない時
+'    If blnFindstr = False And blnFindFormat = False Then
+'        '「検索と置換」のダイアログを表示し、閉じられるまでループ
+'        hWnd = ShowFindDialog
+'        Do While (GetDialogHandle() <> 0)
+'            strFind = GetFindStr(hWnd)
+'            DoEvents
+'        Loop
+'        blnFindFormat = CheckFindFormat()
+'    ElseIf blnFindstr = True And blnFindFormat = True Then
+'        strFind = GetFindStr()
+'    End If
+'
+'    'アクティブシート上のすべての検索対象セルを取得
+'    Set objCell = ActiveSheet.Cells(Rows.Count, Columns.Count)
+'    Do While (True)
+'        If blnFindFormat = True Then
+'            '検索書式設定あり
+'            Set objCell = FindNextFormat(objCell, xlNext, strFind)
+'        Else
+'            '検索書式設定なし
+'            Set objCell = FindJump(objCell, xlNext)
+'        End If
+'
+'        If objCell Is Nothing Then
+'            Exit Do
+'        ElseIf objRange Is Nothing Then
+'            Set objRange = objCell
+'        ElseIf Intersect(objRange, objCell) Is Nothing Then
+'            Set objRange = Union(objRange, objCell)
+'        Else
+'            'すべての検索対象セルを選択
+'            Call objRange.Select
+'            Exit Do
+'        End If
+'    Loop
+'ErrHandle:
+'    Call ActiveCell.Worksheet.Select
+'End Sub
 
 '*****************************************************************************
 '[概要] 検索対象文字列が空白かどうか
@@ -449,132 +436,11 @@ ErrHandle:
 End Function
 
 '*****************************************************************************
-'[概要] 「検索と置換」のダイアログから検索対象の文字列を取得する
-'[引数] 「検索と置換」のダイアログのハンドル
-'[戻値] 検索文字列
-'*****************************************************************************
-Private Function GetFindStr(Optional ByVal hWnd As Long = 0) As String
-    Dim hFindWnd  As Long
-    
-    If hWnd = 0 Then
-        hFindWnd = ShowFindDialog()
-        GetFindStr = GetFindStrFromEdit(hFindWnd)
-        Call CloseDialog(hFindWnd)
-    Else
-        GetFindStr = GetFindStrFromEdit(hWnd)
-    End If
-End Function
-
-'*****************************************************************************
-'[概要] 「検索と置換」のダイアログを閉じる
-'[引数] 「検索と置換」のダイアログのハンドル
-'[戻値] 検索文字列
-'*****************************************************************************
-Private Sub CloseDialog(ByVal hWnd As Long)
-    Const WM_SYSCOMMAND = &H112
-    Const SC_CLOSE = &HF060& 'ウィンドウを終了する
-    Call SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0)
-End Sub
-
-'*****************************************************************************
-'[概要] 「検索と置換」のダイアログのハンドルを取得
-'[引数] なし
-'[戻値] 「検索と置換」のダイアログのハンドル
-'*****************************************************************************
-Private Function GetDialogHandle() As Long
-    GetDialogHandle = FindWindowA("bosa_sdm_XL9", "検索と置換")
-End Function
-
-'*****************************************************************************
-'[概要] 「検索する文字列」のコントロールから検索対象文字列を取得
-'[引数] 「検索と置換」のダイアログのハンドル
-'[戻値] 検索対象文字列
-'*****************************************************************************
-Private Function GetFindStrFromEdit(ByVal hFindWnd As Long) As String
-    Dim strFindStr As String
-    Dim hChildWnd  As Long
-    Dim lngLen     As Long
-    
-    hChildWnd = FindWindowEx(hFindWnd, 0, "EDTBX", "")
-    strFindStr = String(1024, Chr(0))
-    lngLen = GetWindowText(hChildWnd, strFindStr, 1024)
-    GetFindStrFromEdit = Left$(strFindStr, lngLen)
-End Function
-
-'*****************************************************************************
-'[概要] FindFormatが設定されているか判定
-'[引数] なし
-'[戻値] True:設定あり
-'*****************************************************************************
-Private Function CheckFindFormat() As Boolean
-    
-    CheckFindFormat = True
-    
-    With Application.FindFormat
-        With .Interior
-            If .Color = 0 And _
-               IsNull(.Pattern) Then
-            Else
-                Exit Function
-            End If
-        End With
-        
-        With .Font
-            If IsNull(.Name) And _
-               IsNull(.Size) And _
-               IsNull(.FontStyle) And _
-               IsNull(.Background) And _
-               IsNull(.Color) And _
-               IsNull(.Bold) And _
-               IsNull(.Italic) And _
-               IsNull(.Strikethrough) And _
-               IsNull(.Subscript) And _
-               IsNull(.Superscript) And _
-               IsNull(.Underline) Then
-            Else
-                Exit Function
-            End If
-        End With
-        
-        With .Borders
-            If IsNull(.Item(1).LineStyle) And _
-               IsNull(.Item(2).LineStyle) And _
-               IsNull(.Item(3).LineStyle) And _
-               IsNull(.Item(4).LineStyle) And _
-               IsNull(.Item(5).LineStyle) And _
-               IsNull(.Item(6).LineStyle) Then
-            Else
-                Exit Function
-            End If
-        End With
-        
-        If IsNull(.AddIndent) And _
-           IsNull(.FormulaHidden) And _
-           IsNull(.HorizontalAlignment) And _
-           IsNull(.IndentLevel) And _
-           IsNull(.Locked) And _
-           IsNull(.MergeCells) And _
-           IsNull(.NumberFormat) And _
-           IsNull(.NumberFormatLocal) And _
-           IsNull(.Orientation) And _
-           IsNull(.ShrinkToFit) And _
-           IsNull(.VerticalAlignment) And _
-           IsNull(.WrapText) Then
-        Else
-            Exit Function
-        End If
-    End With
-
-    CheckFindFormat = False
-
-End Function
-
-'*****************************************************************************
 '[概要] 「検索と置換」のダイアログを表示する
 '[引数] なし
-'[戻値] ダイアログのウィンドウハンドル
+'[戻値] なし
 '*****************************************************************************
-Private Function ShowFindDialog() As Long
+Private Sub ShowFindDialog()
     Dim objTmpBar As CommandBar
     
     Set objTmpBar = CommandBars.Add(, msoBarPopup, , True)
@@ -583,7 +449,5 @@ Private Function ShowFindDialog() As Long
         .Execute
     End With
     Call objTmpBar.Delete
-
-    ShowFindDialog = GetDialogHandle()
-End Function
+End Sub
 
