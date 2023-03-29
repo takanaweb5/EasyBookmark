@@ -61,7 +61,7 @@ Private Sub CreateToolBar()
     objCmdBar.Controls(1).Caption = "ブックマークの設定/解除"
     objCmdBar.Controls(2).Caption = "次のブックマーク"
     objCmdBar.Controls(3).Caption = "前のブックマーク"
-    objCmdBar.Controls(4).Caption = "すべてのブックマークの選択"
+    objCmdBar.Controls(4).Caption = "すべてのブックマークの削除"
 
     objCmdBar.Controls(1).FaceId = 2525
     objCmdBar.Controls(2).FaceId = 2526

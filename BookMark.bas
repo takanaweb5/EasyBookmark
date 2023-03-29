@@ -5,7 +5,6 @@ Public Declare PtrSafe Function GetKeyState Lib "user32" (ByVal lngVirtKey As Lo
 
 Const C_Color = &HFFFFCC
 Const C_PatternColorIndex = 29
-
 Private lngColor  As Long
     
 '*****************************************************************************
@@ -13,10 +12,9 @@ Private lngColor  As Long
 '[引数] なし
 '[戻値] なし
 '*****************************************************************************
-Public Sub SetBookmark()
+Private Sub SetBookmark()
 On Error GoTo ErrHandle
     Dim objRange As Range
-    Dim blnSet   As Boolean
     
     'Rangeオブジェクトが選択されているか判定
     If TypeOf Selection Is Range Then
@@ -37,7 +35,8 @@ On Error GoTo ErrHandle
     With objRange.Interior
         '[Ctrl]Keyが押下されていれば、セルの色を選択
         If GetKeyState(vbKeyControl) < 0 Then
-            If Application.Dialogs(xlDialogPatterns).Show = False Then
+            '20:カラーパターンの水色(デフォルト色)
+            If Application.Dialogs(xlDialogPatterns).Show(, , 20) = False Then
                 Exit Sub
             End If
             If .ColorIndex = xlColorIndexNone Then
@@ -62,7 +61,7 @@ End Sub
 '[引数] なし
 '[戻値] なし
 '*****************************************************************************
-Public Sub NextOrPrevBookmark()
+Private Sub NextOrPrevBookmark()
     If CommandBars.ActionControl.Caption = "次のブックマーク" Then
         '[Shift]または[Ctrl]Keyが押下されていれば、前方に移動
         If GetKeyState(vbKeyShift) < 0 Or GetKeyState(vbKeyControl) < 0 Then
@@ -91,11 +90,7 @@ On Error GoTo ErrHandle
     Dim objNextCell  As Range
     Dim objSheetCell As Range
     
-    Application.FindFormat.Clear
-    With Application.FindFormat.Interior
-        .Pattern = xlSolid
-        .PatternColorIndex = C_PatternColorIndex
-    End With
+    Call SetFindFormat
     
     '****************************************
     'アクティブシート内の検索
@@ -161,7 +156,7 @@ On Error GoTo ErrHandle
             Application.FindFormat.Clear
             Exit Sub
         End If
-    Next i
+    Next
 
     If Not (objSheetCell Is Nothing) Then
         Call objSheetCell.Select
@@ -171,37 +166,57 @@ ErrHandle:
 End Sub
 
 '*****************************************************************************
-'[概要] すべてのBookmarkを選択
+'[概要] Bookmark検索用のセル書式を設定する
 '[引数] なし
 '[戻値] なし
 '*****************************************************************************
-Public Sub SelectAllBookmarks()
-On Error GoTo ErrHandle
-    Dim objCell  As Range
-    Dim objRange As Range
-    
+Private Sub SetFindFormat()
     Application.FindFormat.Clear
     With Application.FindFormat.Interior
         .Pattern = xlSolid
         .PatternColorIndex = C_PatternColorIndex
     End With
     
-    'アクティブシート上のすべてのBookmarkを取得
-    Set objCell = ActiveSheet.Cells(Rows.Count, Columns.Count)
-    Do While (True)
-        Set objCell = FindNextFormat(objCell, xlNext)
-        If objCell Is Nothing Then
-            Exit Do
-        ElseIf objRange Is Nothing Then
-            Set objRange = objCell
-        ElseIf Intersect(objRange, objCell) Is Nothing Then
-            Set objRange = Union(objRange, objCell)
-        Else
-            'すべてのBookmarkを選択
-            Call objRange.Select
-            Exit Do
+    If TypeOf Selection Is Range Then
+        '選択されているセルが1つだけか判定
+        If Not IsOnlyCell(Selection) Then
+            Exit Sub
         End If
-    Loop
+    Else
+        Exit Sub
+    End If
+
+    With ActiveCell.Interior
+        If .Pattern = xlSolid And _
+           .PatternColorIndex = C_PatternColorIndex Then
+            Application.FindFormat.Interior.Color = .Color
+        End If
+    End With
+End Sub
+
+'*****************************************************************************
+'[概要] Rangeが(結合された)単一のセルかどうか
+'[引数] 判定するRange
+'[戻値] True:単一のセル、False:複数のセル
+'*****************************************************************************
+Private Function IsOnlyCell(ByRef objRange As Range) As Boolean
+    IsOnlyCell = (objRange.Address(0, 0) = objRange(1, 1).MergeArea.Address(0, 0))
+End Function
+
+'*****************************************************************************
+'[概要] すべてのBookmarkを選択
+'[引数] なし
+'[戻値] なし
+'*****************************************************************************
+Private Sub SelectAllBookmarks()
+On Error GoTo ErrHandle
+    Dim objRange As Range
+    
+    Call SetFindFormat
+    Set objRange = GetBookmarks(ActiveWorkbook.ActiveSheet)
+    If Not (objRange Is Nothing) Then
+        Call objRange.Select
+    End If
 ErrHandle:
     Application.FindFormat.Clear
 End Sub
@@ -211,11 +226,11 @@ End Sub
 '[引数] なし
 '[戻値] なし
 '*****************************************************************************
-Public Sub ClearBookmarks()
+Private Sub ClearBookmarks()
 On Error GoTo ErrHandle
     Dim i As Long
-    Dim j As Long
-    Dim objCell  As Range
+    Dim j1 As Long
+    Dim j2 As Long
     Dim objRange As Range
     
     Application.FindFormat.Clear
@@ -224,39 +239,41 @@ On Error GoTo ErrHandle
         .PatternColorIndex = C_PatternColorIndex
     End With
     
-    '****************************************
-    'ブックマークの数を計算
-    '****************************************
+    'すべてのブックマークの数を計算
     For i = 1 To ActiveWorkbook.Worksheets.Count
-        Set objRange = Nothing
-        Set objCell = ActiveWorkbook.Worksheets(i).Cells(1, 1)
-        Do While (True)
-            Set objCell = FindNextFormat(objCell, xlNext)
-            If objCell Is Nothing Then
-                Exit Do
-            ElseIf objRange Is Nothing Then
-                Set objRange = objCell
-                j = j + 1
-            ElseIf Intersect(objRange, objCell) Is Nothing Then
-                Set objRange = Union(objRange, objCell)
-                j = j + 1
-            Else
-                Exit Do
-            End If
-        Loop
-    Next i
+        Set objRange = GetBookmarks(ActiveWorkbook.Worksheets(i))
+        If Not (objRange Is Nothing) Then
+            j1 = j1 + objRange.Cells.Count
+        End If
+    Next
     
-    If j = 0 Then
+    If j1 = 0 Then
         Application.FindFormat.Clear
         Exit Sub
     End If
     
+    '選択セルと同色のブックマークの数を計算
+    Call SetFindFormat
+    For i = 1 To ActiveWorkbook.Worksheets.Count
+        Set objRange = GetBookmarks(ActiveWorkbook.Worksheets(i))
+        If Not (objRange Is Nothing) Then
+            j2 = j2 + objRange.Cells.Count
+        End If
+    Next
+    
     '****************************************
     '実行確認
     '****************************************
-    If MsgBox(j & "個のブックマークを削除します" & vbLf & "よろしいですか？", vbOKCancel + vbQuestion) = vbCancel Then
-        Application.FindFormat.Clear
-        Exit Sub
+    If j1 = j2 Then
+        If MsgBox(j1 & " 個のブックマークを削除します" & vbLf & "よろしいですか？", vbOKCancel + vbQuestion) = vbCancel Then
+            Application.FindFormat.Clear
+            Exit Sub
+        End If
+    Else
+        If MsgBox(j1 & " 個のブックマークのうち" & vbLf & "選択されたセルと同じ色の " & j2 & " 個のブックマークを削除します" & vbLf & "よろしいですか？", vbOKCancel + vbQuestion) = vbCancel Then
+            Application.FindFormat.Clear
+            Exit Sub
+        End If
     End If
     
     '****************************************
@@ -264,38 +281,60 @@ On Error GoTo ErrHandle
     '****************************************
     Application.ScreenUpdating = False
     For i = 1 To ActiveWorkbook.Worksheets.Count
-        Set objCell = ActiveWorkbook.Worksheets(i).Cells(1, 1)
-        Do While (True)
-            Set objCell = FindNextFormat(objCell, xlNext)
-            If objCell Is Nothing Then
-                Exit Do
-            Else
-                '書式のクリア
-                With objCell.Interior
-                    If .Color = lngColor Then
-                        .ColorIndex = xlNone
-                    Else
-                        .PatternColorIndex = xlAutomatic
-                    End If
-                End With
-            End If
-        Loop
-    Next i
+        Set objRange = GetBookmarks(ActiveWorkbook.Worksheets(i), True)
+        If Not (objRange Is Nothing) Then
+            objRange.Interior.ColorIndex = xlNone
+        End If
+    Next
 ErrHandle:
     Application.FindFormat.Clear
 End Sub
 
 '*****************************************************************************
+'[概要] 対象シートのすべてのBookmarkを取得
+'[引数] 対象シート、blnMerge:マージセルの時マージエリアを取得する
+'[戻値] Bookmarkが設定されたセルすべて
+'*****************************************************************************
+Private Function GetBookmarks(ByRef objSheet As Worksheet, Optional blnMerge As Boolean = False) As Range
+    Dim objCell  As Range
+    Dim objRange As Range
+    
+    Set objCell = GetLastCell(objSheet)
+    Do While (True)
+        Set objCell = FindNextFormat(objCell, xlNext)
+        If objCell Is Nothing Then
+            Exit Function
+        End If
+        
+        If blnMerge Then
+            Set objRange = objCell.MergeArea
+        Else
+            Set objRange = objCell
+        End If
+        
+        If GetBookmarks Is Nothing Then
+            Set GetBookmarks = objRange
+        ElseIf Intersect(GetBookmarks, objRange) Is Nothing Then
+            Set GetBookmarks = Application.Union(GetBookmarks, objRange)
+        Else
+            Exit Function
+        End If
+    Loop
+End Function
+
+'*****************************************************************************
 '[概要] 次の書式のセルに移動
-'[引数] 検索開始セル
-'            検索方向
-'            検索文字列（省略可）
+'[引数] 検索開始セル、検索方向
 '[戻値] 次の書式のセル
 '*****************************************************************************
-Private Function FindNextFormat(ByRef objNowCell As Range, _
-                                ByVal xlDirection As XlSearchDirection, _
-                       Optional ByVal strFind As String = "") As Range
-    Set FindNextFormat = objNowCell.Worksheet.Cells.Find(strFind, objNowCell, _
+Private Function FindNextFormat(ByRef objCell As Range, _
+                                ByVal xlDirection As XlSearchDirection) As Range
+    Dim objUsedRange As Range
+    With objCell.Worksheet
+        Set objUsedRange = .Range(.Range("A1"), .Cells.SpecialCells(xlLastCell))
+        Set objUsedRange = Application.Union(objUsedRange, objCell)
+    End With
+    Set FindNextFormat = objUsedRange.Find("", objCell, _
                   xlFormulas, xlPart, xlByRows, xlDirection, False, False, True)
 End Function
 
@@ -304,7 +343,7 @@ End Function
 '[引数] なし
 '[戻値] なし
 '*****************************************************************************
-Public Sub FindNext()
+Private Sub FindNext()
 On Error GoTo ErrHandle
     Dim objCell As Range
     Dim xlDirection As XlSearchDirection
@@ -329,85 +368,8 @@ ErrHandle:
 End Sub
 
 '*****************************************************************************
-'[概要] すべての検索対象セルを選択
-'[引数] なし
-'[戻値] なし
-'*****************************************************************************
-'Public Sub SelectAllSearchCell()
-'On Error GoTo ErrHandle
-'    Dim blnFindFormat As Boolean
-'    Dim blnFindstr    As Boolean
-'    Dim strFind    As String
-'    Dim hWnd       As Long
-'    Dim objCell    As Range
-'    Dim objRange   As Range
-'
-'    blnFindFormat = CheckFindFormat()
-'    blnFindstr = Not CheckFindStrIsBlank()
-'
-'    '検索文字列も検索書式も設定されていない時
-'    If blnFindstr = False And blnFindFormat = False Then
-'        '「検索と置換」のダイアログを表示し、閉じられるまでループ
-'        hWnd = ShowFindDialog
-'        Do While (GetDialogHandle() <> 0)
-'            strFind = GetFindStr(hWnd)
-'            DoEvents
-'        Loop
-'        blnFindFormat = CheckFindFormat()
-'    ElseIf blnFindstr = True And blnFindFormat = True Then
-'        strFind = GetFindStr()
-'    End If
-'
-'    'アクティブシート上のすべての検索対象セルを取得
-'    Set objCell = ActiveSheet.Cells(Rows.Count, Columns.Count)
-'    Do While (True)
-'        If blnFindFormat = True Then
-'            '検索書式設定あり
-'            Set objCell = FindNextFormat(objCell, xlNext, strFind)
-'        Else
-'            '検索書式設定なし
-'            Set objCell = FindJump(objCell, xlNext)
-'        End If
-'
-'        If objCell Is Nothing Then
-'            Exit Do
-'        ElseIf objRange Is Nothing Then
-'            Set objRange = objCell
-'        ElseIf Intersect(objRange, objCell) Is Nothing Then
-'            Set objRange = Union(objRange, objCell)
-'        Else
-'            'すべての検索対象セルを選択
-'            Call objRange.Select
-'            Exit Do
-'        End If
-'    Loop
-'ErrHandle:
-'    Call ActiveCell.Worksheet.Select
-'End Sub
-
-'*****************************************************************************
-'[概要] 検索対象文字列が空白かどうか
-'[引数] なし
-'[戻値] True:検索対象文字列設定なし
-'*****************************************************************************
-Private Function CheckFindStrIsBlank() As Boolean
-    Dim objCell As Range
-    Set objCell = Cells.FindNext(ActiveCell)
-    If objCell Is Nothing Then
-        CheckFindStrIsBlank = True
-    Else
-        If objCell.Value = "" Then
-            CheckFindStrIsBlank = True
-        Else
-            CheckFindStrIsBlank = False
-        End If
-    End If
-End Function
-
-'*****************************************************************************
 '[概要] 次を検索
-'[引数] 検索開始セル
-'            検索方向
+'[引数] 検索開始セル、検索方向
 '[戻値] 次のセル
 '*****************************************************************************
 Private Function FindJump(ByRef objNowCell As Range, ByVal xlDirection As XlSearchDirection) As Range
@@ -451,3 +413,11 @@ Private Sub ShowFindDialog()
     Call objTmpBar.Delete
 End Sub
 
+'*****************************************************************************
+'[概要] 使用されている最後のセルを取得する
+'[引数] 対象のシート
+'[戻値] 最後のセル
+'*****************************************************************************
+Private Function GetLastCell(ByRef objSheet As Worksheet) As Range
+    Set GetLastCell = objSheet.Cells.SpecialCells(xlLastCell)
+End Function
