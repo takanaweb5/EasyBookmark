@@ -1,0 +1,58 @@
+﻿'*****************************************************************************
+'[概要] アドインのインストール時に実行される
+'*****************************************************************************
+Private Sub Workbook_AddinInstall()
+    On Error Resume Next
+    Call CreateToolBar
+End Sub
+
+'*****************************************************************************
+'[概要] アドインのアンインストール時に実行される
+'*****************************************************************************
+Private Sub Workbook_AddinUninstall()
+    On Error Resume Next
+    Call Application.CommandBars("かんたんブックマーク").Delete
+End Sub
+
+Private Sub Auto_Remove()
+End Sub
+
+
+'*****************************************************************************
+'[概要] ToolBarを作成する
+'[引数] なし
+'[戻値] なし
+'*****************************************************************************
+Private Sub CreateToolBar()
+    On Error Resume Next
+    Call Application.CommandBars("かんたんブックマーク").Delete
+    On Error GoTo 0
+    
+    Dim objCmdBar As CommandBar
+    Set objCmdBar = Application.CommandBars.Add("かんたんブックマーク", , , True)
+        
+    Dim i As Long
+    For i = 1 To 4
+        Call objCmdBar.Controls.Add(msoControlButton)
+    Next
+        
+    objCmdBar.Controls(1).Caption = "ブックマークの設定/解除"
+    objCmdBar.Controls(2).Caption = "次のブックマーク"
+    objCmdBar.Controls(3).Caption = "前のブックマーク"
+    objCmdBar.Controls(4).Caption = "すべてのブックマークの選択"
+
+    objCmdBar.Controls(1).FaceId = 2525
+    objCmdBar.Controls(2).FaceId = 2526
+    objCmdBar.Controls(3).FaceId = 2527
+    objCmdBar.Controls(4).FaceId = 2528
+
+    objCmdBar.Controls(1).OnAction = "SetBookMark"
+    objCmdBar.Controls(2).OnAction = "NextorprevBookMark"
+    objCmdBar.Controls(3).OnAction = "NextorprevBookMark"
+    objCmdBar.Controls(4).OnAction = "ClearBookMarks"
+
+    objCmdBar.Controls(1).TooltipText = "ブックマークの設定/解除" & vbLf & "Ctrlで色を選択"
+    
+    objCmdBar.Visible = True
+ End Sub
+ 
